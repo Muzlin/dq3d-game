@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>勇者斗恶龙 3D</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ 3D 画布 ============ -->
+<div id="canvasWrap">
+  <canvas id="scene"></canvas>
+  <div id="floatLayer"></div>
+</div>
+
+<!-- ============ 顶部 HUD ============ -->
+<div id="hud">
+  <div class="hud-left">
+    <div class="logo">⚔ 勇者斗恶龙 3D</div>
+    <div class="stage-info" id="stageInfo">第 1 关 · 森林小径</div>
+  </div>
+  <div class="hud-right">
+    <div class="round" id="round">第 1 回合</div>
+    <button class="icon-btn" onclick="toggleSound()" id="soundBtn" title="音效">🔊</button>
+    <button class="icon-btn" onclick="toggleBGM()" id="bgmBtn" title="背景音乐">🎵</button>
+    <button class="icon-btn" onclick="toggleCam()" title="视角">🎥</button>
+    <button class="icon-btn" onclick="openBag()" title="背包">🎒<span class="badge" id="bagBadge">0</span></button>
+    <button class="icon-btn" onclick="Features.openMenu()" title="菜单">☰</button>
+    <button class="icon-btn" onclick="restartGame()" title="重新开始">🔄</button>
+  </div>
+</div>
+
+<!-- ============ 敌我状态板 ============ -->
+<div id="panels">
+  <!-- 玩家面板 -->
+  <div class="panel player">
+    <div class="p-head">
+      <span class="p-icon" id="pIcon">🧙</span>
+      <div class="p-meta">
+        <div class="p-name" id="pName">勇者</div>
+        <div class="p-lv">Lv.<span id="pLv">1</span></div>
+      </div>
+    </div>
+    <div class="bar hp">
+      <div class="bar-fill" id="pHpBar"></div>
+      <span class="bar-text" id="pHpText">100 / 100</span>
+    </div>
+    <div class="bar mp">
+      <div class="bar-fill" id="pMpBar"></div>
+      <span class="bar-text" id="pMpText">30 / 30</span>
+    </div>
+    <div class="bar exp">
+      <div class="bar-fill" id="pExpBar"></div>
+      <span class="bar-text" id="pExpText">EXP 0 / 50</span>
+    </div>
+    <div class="p-stats">
+      <span title="攻击力">🗡 <b id="pAtk">18</b></span>
+      <span title="防御力">🛡 <b id="pDef">6</b></span>
+    </div>
+    <!-- 状态效果图标 -->
+    <div class="buffs" id="pBuffs"></div>
+  </div>
+
+  <!-- 敌人面板 -->
+  <div class="panel enemy">
+    <div class="p-head">
+      <span class="p-icon" id="eIcon">🐲</span>
+      <div class="p-meta">
+        <div class="p-name" id="eName">恶龙</div>
+        <div class="p-lv" id="eLv">Lv.1</div>
+      </div>
+    </div>
+    <div class="bar hp">
+      <div class="bar-fill" id="eHpBar"></div>
+      <span class="bar-text" id="eHpText">120 / 120</span>
+    </div>
+    <div class="buffs" id="eBuffs"></div>
+  </div>
+</div>
+
+<!-- ============ 底部操作区 ============ -->
+<div id="actions">
+  <button class="act-btn atk" onclick="playerAction('attack')">
+    <span class="a-icon">🗡</span>
+    <span class="a-name">攻击</span>
+    <span class="a-sub">基础伤害</span>
+  </button>
+  <button class="act-btn skill" id="btnSkill" onclick="playerAction('skill')">
+    <span class="a-icon">🔥</span>
+    <span class="a-name">烈焰斩</span>
+    <span class="a-sub" id="skillSub">MP 15 · CD 3</span>
+  </button>
+  <button class="act-btn skill2" id="btnSkill2" onclick="playerAction('skill2')">
+    <span class="a-icon">❄️</span>
+    <span class="a-name">冰霜箭</span>
+    <span class="a-sub" id="skill2Sub">MP 10 · CD 2</span>
+  </button>
+  <button class="act-btn heal" id="btnHeal" onclick="playerAction('heal')">
+    <span class="a-icon">💚</span>
+    <span class="a-name">治疗术</span>
+    <span class="a-sub" id="healSub">MP 12 · CD 3</span>
+  </button>
+  <button class="act-btn poison" id="btnPoison" onclick="playerAction('poison')">
+    <span class="a-icon">☠️</span>
+    <span class="a-name">剧毒</span>
+    <span class="a-sub" id="poisonSub">MP 12 · CD 4</span>
+  </button>
+  <button class="act-btn def" onclick="playerAction('defend')">
+    <span class="a-icon">🛡</span>
+    <span class="a-name">防御</span>
+    <span class="a-sub">减伤回蓝</span>
+  </button>
+  <button class="act-btn flee" onclick="Features.tryFlee()">
+    <span class="a-icon">💨</span>
+    <span class="a-name">逃跑</span>
+    <span class="a-sub">55%</span>
+  </button>
+</div>
+
+<!-- ============ 战斗日志 ============ -->
+<div id="logBar" onclick="toggleLog()">
+  <span id="logBarText">⚔ 战斗开始</span>
+  <span class="log-toggle">▲</span>
+</div>
+
+<!-- 战斗控制 + 连击 -->
+<div id="battleCtrls">
+  <button class="ctrl-btn" id="speedBtn" onclick="Features.cycleSpeed()" title="战斗速度">1×</button>
+  <button class="ctrl-btn" id="autoBtn" onclick="Features.toggleAuto()" title="自动战斗（⌘P 解除）">▶ 自动 <span class="kbd">⌘P</span></button>
+  <div id="comboCounter">x0</div>
+</div>
+<div id="critFlash"></div>
+<div id="logPanel">
+  <div id="log"></div>
+</div>
+
+<!-- ============ 背包弹窗 ============ -->
+<div class="modal" id="bagModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>🎒 背包</h2>
+      <button class="close-btn" id="bagCloseBtn" onclick="closeBag()">✕</button>
+    </div>
+    <div class="equip-row" id="equipRow"></div>
+    <div class="modal-body">
+      <h3>物品 <span class="hint">点击使用 / 装备</span></h3>
+      <div class="bag-grid" id="bagGrid"></div>
+      <h3>已装备</h3>
+      <div class="equip-grid" id="equipGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 商店弹窗 ============ -->
+<div class="modal" id="shopModal">
+  <div class="modal-box shop-box">
+    <div class="modal-head">
+      <h2>🏪 商店</h2>
+      <div class="shop-gold">💰 <b id="shopGold">0</b></div>
+    </div>
+    <div class="shop-tabs">
+      <button id="tabBuy" class="shop-tab active" onclick="Shop.switchView('buy')">购买</button>
+      <button id="tabSell" class="shop-tab" onclick="Shop.switchView('sell')">出售</button>
+    </div>
+    <div class="shop-filters" id="shopFilters">
+      <button class="shop-filter active" data-cat="all" onclick="Shop.setCategory('all')">全部</button>
+      <button class="shop-filter" data-cat="weapon" onclick="Shop.setCategory('weapon')">🗡 武器</button>
+      <button class="shop-filter" data-cat="armor" onclick="Shop.setCategory('armor')">🛡 护甲</button>
+      <button class="shop-filter" data-cat="acc" onclick="Shop.setCategory('acc')">💍 饰品</button>
+      <button class="shop-filter" data-cat="consume" onclick="Shop.setCategory('consume')">🧪 道具</button>
+    </div>
+    <div class="modal-body">
+      <div class="shop-list" id="shopList"></div>
+    </div>
+    <button class="big-btn shop-continue" id="shopContinueBtn" onclick="Shop.proceed()">前往下一关 →</button>
+  </div>
+</div>
+
+<!-- ============ 结算弹窗 ============ -->
+<div class="modal" id="resultModal">
+  <div class="modal-box result-box">
+    <div class="r-icon" id="rIcon">🏆</div>
+    <h2 id="rTitle">胜 利</h2>
+    <p id="rText"></p>
+    <div class="reward-box" id="rewardBox"></div>
+    <button class="big-btn" id="rBtn">继续 <span class="key-hint">空格</span></button>
+  </div>
+</div>
+
+<!-- ============ 开场弹窗 ============ -->
+<div class="modal show" id="startModal">
+  <div class="modal-box start-box">
+    <div class="r-icon">⚔️</div>
+    <h2>勇者斗恶龙 3D</h2>
+
+    <!-- 有存档时显示进度 -->
+    <div id="saveInfo" class="save-info" style="display:none">
+      <div class="save-title">📁 检测到冒险记录</div>
+      <div class="save-detail">
+        <div class="save-row"><span>进度</span><b id="saveStage">第 1 关</b></div>
+        <div class="save-row"><span>下一个敌人</span><b id="saveEnemy">史莱姆</b></div>
+        <div class="save-row"><span>等级 / 金币</span><b id="saveLevel">Lv.1 · 0💰</b></div>
+      </div>
+    </div>
+
+    <p class="start-desc" id="startDesc">
+      击败 5 关怪物，讨伐最终恶龙。<br>
+      越战越强，收集装备，挑战极限！
+    </p>
+
+    <div class="start-tips" id="startTips">
+      <div>🗡 攻击 · 🔥 技能 · 🛡 防御</div>
+      <div>🎒 掉落装备自动进背包</div>
+      <div>⭐ 升级提升属性并回满血</div>
+    </div>
+
+    <button class="big-btn" id="startBtn" onclick="startGame()">开 始 冒 险</button>
+    <button class="text-btn" id="continueBtn" onclick="continueGame()" style="display:none">继续上次进度</button>
+  </div>
+</div>
+
+<!-- ============ 主菜单 ============ -->
+<div class="modal" id="menuModal">
+  <div class="modal-box menu-box">
+    <div class="modal-head"><h2>☰ 菜单</h2><button class="close-btn" onclick="Features.closeModal('menuModal')">✕</button></div>
+    <div class="menu-grid">
+      <button class="menu-btn" onclick="Features.openSkillTree()"><span>🌳</span>技能树</button>
+      <button class="menu-btn" onclick="Features.openPetPanel()"><span>🐾</span>宠物</button>
+      <button class="menu-btn" onclick="Features.openEnchant()"><span>✨</span>附魔</button>
+      <button class="menu-btn" onclick="Features.openAchievements()"><span>🏆</span>成就</button>
+      <button class="menu-btn" onclick="Features.openBestiary()"><span>📖</span>图鉴</button>
+      <button class="menu-btn" onclick="Features.openBoard()"><span>📊</span>排行榜</button>
+      <button class="menu-btn" onclick="Features.openSlots()"><span>💾</span>存档</button>
+      <button class="menu-btn boss" onclick="Features.startBossChallenge()"><span>👑</span>Boss挑战</button>
+      <button class="menu-btn" onclick="Spectate.open()"><span>📺</span>观战</button>
+      <button class="menu-btn" onclick="Features.startEndless()"><span>♾️</span>无尽模式</button>
+      <button class="menu-btn" onclick="Features.sweepStages(50)"><span>⚡</span>一键扫荡</button>
+      <button class="menu-btn toggle" id="toggleShopBtn" onclick="Features.toggleAutoShop()"><span>🏪</span>自动进商店</button>
+      <button class="menu-btn toggle" id="toggleBagBtn" onclick="Features.toggleAutoBag()"><span>🎒</span>自动开背包</button>
+      <button class="menu-btn danger" onclick="Features.closeModal('menuModal');restartGame()"><span>🔄</span>重新开始</button>
+    </div>
+    <button class="big-btn" style="margin-top:14px" onclick="Features.closeModal('menuModal')">继续游戏</button>
+  </div>
+</div>
+
+<!-- ============ 技能树 ============ -->
+<div class="modal" id="skillTreeModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>🌳 技能树</h2><div class="shop-gold">技能点 <b id="skillPoints">0</b></div><button class="close-btn" onclick="Features.closeModal('skillTreeModal')">✕</button></div>
+    <div class="modal-body"><div class="skill-list" id="skillTreeList"></div></div>
+  </div>
+</div>
+
+<!-- ============ 宠物 ============ -->
+<div class="modal" id="petModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>🐾 宠物</h2><button class="close-btn" onclick="Features.closeModal('petModal')">✕</button></div>
+    <div class="modal-body"><div class="pet-list" id="petList"></div></div>
+  </div>
+</div>
+
+<!-- ============ 附魔 ============ -->
+<div class="modal" id="enchantModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>✨ 武器附魔</h2><button class="close-btn" onclick="Features.closeModal('enchantModal')">✕</button></div>
+    <div class="modal-body"><div class="enchant-list" id="enchantList"></div></div>
+  </div>
+</div>
+
+<!-- ============ 成就 ============ -->
+<div class="modal" id="achievementModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>🏆 成就</h2><button class="close-btn" onclick="Features.closeModal('achievementModal')">✕</button></div>
+    <div class="modal-body"><div class="ach-list" id="achievementList"></div></div>
+  </div>
+</div>
+
+<!-- ============ 图鉴 ============ -->
+<div class="modal" id="bestiaryModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>📖 怪物图鉴</h2><button class="close-btn" onclick="Features.closeModal('bestiaryModal')">✕</button></div>
+    <div class="modal-body"><div class="best-list" id="bestiaryList"></div></div>
+  </div>
+</div>
+
+<!-- ============ 排行榜 ============ -->
+<div class="modal" id="boardModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>📊 排行榜</h2><button class="close-btn" onclick="Features.closeModal('boardModal')">✕</button></div>
+    <div class="modal-body"><div id="boardList"></div></div>
+  </div>
+</div>
+
+<!-- ============ 存档位 ============ -->
+<div class="modal" id="slotModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>💾 存档管理</h2><button class="close-btn" onclick="Features.closeModal('slotModal')">✕</button></div>
+    <div class="modal-body"><div class="slot-list" id="slotList"></div></div>
+  </div>
+</div>
+
+<!-- ============ 观战模式 ============ -->
+<div class="modal" id="spectateModal">
+  <div class="modal-box spectate-box">
+    <div class="modal-head">
+      <h2>📺 观战 · <span id="spectateFocus">房间 1</span></h2>
+      <div class="sp-round" id="spectateRound">第 1 回合</div>
+      <button class="ctrl-btn" id="spectateSpeed" onclick="Spectate.cycleSpeed()">1×</button>
+      <button class="close-btn" onclick="Spectate.close()">✕</button>
+    </div>
+    <div class="spectate-body">
+      <!-- 左侧：3D 主画面 + 缩略图 -->
+      <div class="spectate-main">
+        <div class="spectate-stage">
+          <canvas id="spectateCanvas"></canvas>
+          <div class="ss-hint">👆 点击右侧缩略图切换房间</div>
+        </div>
+        <div class="spectate-grid" id="spectateGrid"></div>
+      </div>
+      <!-- 右侧：评论栏 -->
+      <div class="comment-panel">
+        <div class="comment-list" id="commentList"></div>
+        <div class="comment-input-row">
+          <input type="text" id="commentInput" class="comment-input" placeholder="发条评论…"
+                 maxlength="40" onkeydown="if(event.key==='Enter')Spectate.sendComment()">
+          <button class="comment-send" onclick="Spectate.sendComment()">发送</button>
+        </div>
+        <div class="comment-quick" id="commentQuick"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 加载提示 ============ -->
+<div id="loading">加载 3D 引擎…</div>
+
+<script src="three.min.js"></script>
+<script src="audio.js?v=13"></script>
+<script src="bgm.js?v=13"></script>
+<script src="hyper4d.js?v=13"></script>
+<script src="effects.js?v=13"></script>
+<script src="models.js?v=13"></script>
+<script src="shop.js?v=13"></script>
+<script src="features.js?v=13"></script>
+<script src="spectate.js?v=13"></script>
+<script src="devpanel.js?v=14"></script>
+<script src="game.js?v=14"></script>
+</body>
+</html>
